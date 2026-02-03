@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+
+<!-- ✅ إعدادات الجوال / Safari -->
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+
+<title>Target Aim 🎯</title>
+
+<style>
+:root{
+  --safe-top: env(safe-area-inset-top);
+  --safe-bot: env(safe-area-inset-bottom);
+}
+
+*{box-sizing:border-box}
+
+html,body{
+  margin:0;
+  height:100%;
+  overflow:hidden;
+  background:#23262b;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  font-family:system-ui,-apple-system,"Segoe UI",Arial;
+}
+
+/* Canvas ثابت للجوال */
+canvas{
+  display:block;
+  width:100vw;
+  height:100dvh;
+  height:100vh;
+}
+
+/* HUD */
+#hud{
+  position:fixed;
+  top: calc(12px + var(--safe-top));
+  left:12px; right:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  pointer-events:none;
+  gap:12px;
+  z-index:10;
+}
+
+.pill{
+  background:rgba(255,255,255,0.08);
+  border:2px solid rgba(255,255,255,0.14);
+  border-radius:14px;
+  padding:10px 14px;
+  font-weight:900;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  color:#fff;
+}
+
+.shots{
+  display:flex;
+  gap:6px;
+}
+
+.slot{
+  width:46px;
+  height:38px;
+  border-radius:10px;
+  background:rgba(255,255,255,0.08);
+  border:2px solid rgba(255,255,255,0.14);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+}
+
+.slot.q{opacity:.45}
+
+/* أزرار تحت */
+#bar{
+  position:fixed;
+  bottom: calc(12px + var(--safe-bot));
+  left:12px; right:12px;
+  display:flex;
+  gap:10px;
+  justify-content:center;
+  z-index:10;
+}
+
+button{
+  border:none;
+  border-radius:16px;
+  padding:14px 18px;
+  font-weight:900;
+  background:rgba(255,255,255,0.10);
+  color:#fff;
+  border:2px solid rgba(255,255,255,0.14);
+  box-shadow:0 12px 26px rgba(0,0,0,0.45);
+  -webkit-tap-highlight-color:transparent;
+}
+button:active{transform:scale(.97)}
+
+/* Overlay */
+#overlay{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.65);
+  backdrop-filter:blur(6px);
+  z-index:30;
+}
+
+.card{
+  width:min(520px,92vw);
+  background:rgba(255,255,255,0.10);
+  border:2px solid rgba(255,255,255,0.18);
+  border-radius:22px;
+  padding:22px;
+  text-align:center;
+  color:#fff;
+}
+
+.big{
+  font-size:40px;
+  font-weight:1000;
+  margin:10px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+  <div class="pill">المجموع <b id="total">0</b></div>
+  <div class="shots" id="shotRow"></div>
+  <div class="pill">الطلقات <b id="count">0</b>/<b id="max">5</b></div>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="bar">
+  <button id="btnRestart">إعادة</button>
+  <button id="btnHome">الرئيسية</button>
+</div>
+
+<div id="overlay">
+  <div class="card" id="cardHome">
+    <h2>التصويب 🎯</h2>
+    <p>اضغط لإطلاق الطلقة</p>
+    <button id="btnStart" style="width:100%">ابدأ</button>
+  </div>
+
+  <div class="card" id="cardEnd" style="display:none">
+    <h2>انتهت الجولة</h2>
+    <div class="big" id="endTotal">0</div>
+    <button id="btnAgain" style="width:100%">إعادة</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const HOME_URL="index.html";
+
+  const canvas=document.getElementById("c");
+  const ctx=canvas.getContext("2d");
+
+  const totalEl=document.getElementById("total");
+  const countEl=document.getElementById("count");
+  const maxEl=document.getElementById("max");
+  const shotRow=document.getElementById("shotRow");
+
+  const overlay=document.getElementById("overlay");
+  const cardHome=document.getElementById("cardHome");
+  const cardEnd=document.getElementById("cardEnd");
+  const endTotal=document.getElementById("endTotal");
+
+  const btnStart=document.getElementById("btnStart");
+  const btnAgain=document.getElementById("btnAgain");
+  const btnRestart=document.getElementById("btnRestart");
+  const btnHome=document.getElementById("btnHome");
+
+  const MAX_SHOTS=5;
+  maxEl.textContent=MAX_SHOTS;
+
+  let W=0,H=0,dpr=1;
+  let TARGET_R=140;
+
+  let running=false;
+  let shots=[];
+  let total=0;
+
+  let aim={x:0,y:0,dir:1,speed:3.2};
+  const target={cx:0,cy:0};
+  const holes=[];
+
+  function resize(){
+    dpr=window.devicePixelRatio||1;
+    W=window.innerWidth;
+    H=window.innerHeight;
+    canvas.width=W*dpr;
+    canvas.height=H*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    TARGET_R=Math.min(W,H)*0.28;
+    target.cx=W/2;
+    target.cy=H/2;
+
+    aim.y=target.cy;
+    aim.x=target.cx-(TARGET_R+10);
+  }
+
+  function buildShots(){
+    shotRow.innerHTML="";
+    for(let i=0;i<MAX_SHOTS;i++){
+      const d=document.createElement("div");
+      d.className="slot q";
+      d.textContent="?";
+      shotRow.appendChild(d);
+    }
+  }
+
+  function updateHUD(){
+    totalEl.textContent=total;
+    countEl.textContent=shots.length;
+    [...shotRow.children].forEach((el,i)=>{
+      if(shots[i]){
+        el.textContent=shots[i];
+        el.className="slot";
+      }else{
+        el.textContent="?";
+        el.className="slot q";
+      }
+    });
+  }
+
+  function scoreFromDist(d){
+    const step=TARGET_R/10;
+    return Math.max(1,10-Math.floor(d/step));
+  }
+
+  function drawTarget(){
+    const colors=["#fff","#000","#fff","#000","#27c7d5","#ff1e1e","#ffd400"];
+    for(let i=0;i<7;i++){
+      ctx.beginPath();
+      ctx.arc(target.cx,target.cy,TARGET_R*(1-i/7),0,Math.PI*2);
+      ctx.fillStyle=colors[i];
+      ctx.fill();
+    }
+  }
+
+  function drawCross(x,y){
+    ctx.strokeStyle="red";
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(x,y,36,0,Math.PI*2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x-48,y); ctx.lineTo(x-20,y);
+    ctx.moveTo(x+20,y); ctx.lineTo(x+48,y);
+    ctx.moveTo(x,y-48); ctx.lineTo(x,y-20);
+    ctx.moveTo(x,y+20); ctx.lineTo(x,y+48);
+    ctx.stroke();
+  }
+
+  function shoot(){
+    if(!running||shots.length>=MAX_SHOTS) return;
+    const dx=aim.x-target.cx;
+    const dy=aim.y-target.cy;
+    const d=Math.hypot(dx,dy);
+    const s=scoreFromDist(d);
+    shots.push(s);
+    total+=s;
+    holes.push({x:aim.x,y:aim.y});
+    updateHUD();
+    if(shots.length>=MAX_SHOTS) endRound();
+  }
+
+  function endRound(){
+    running=false;
+    overlay.style.display="flex";
+    cardHome.style.display="none";
+    cardEnd.style.display="block";
+    endTotal.textContent=total;
+  }
+
+  function start(){
+    shots=[]; total=0; holes.length=0;
+    updateHUD();
+    running=true;
+    overlay.style.display="none";
+  }
+
+  function loop(){
+    ctx.clearRect(0,0,W,H);
+    drawTarget();
+    holes.forEach(h=>{
+      ctx.fillStyle="#000";
+      ctx.beginPath();
+      ctx.arc(h.x,h.y,5,0,Math.PI*2);
+      ctx.fill();
+    });
+
+    if(running){
+      aim.x+=aim.speed*aim.dir;
+      const L=target.cx-(TARGET_R+10);
+      const R=target.cx+(TARGET_R+10);
+      if(aim.x<L||aim.x>R) aim.dir*=-1;
+      drawCross(aim.x,aim.y);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    shoot();
+  });
+
+  btnStart.onclick=start;
+  btnAgain.onclick=start;
+  btnRestart.onclick=start;
+  btnHome.onclick=()=>location.href=HOME_URL;
+
+  buildShots();
+  resize();
+  updateHUD();
+  overlay.style.display="flex";
+  loop();
+})();
+</script>
+
+</body>
+</html>

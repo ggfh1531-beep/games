@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>STACK</title>
+<style>
+  html,body{
+    margin:0;
+    height:100%;
+    overflow:hidden;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto;
+    background:#1f2326; /* رمادي غامق */
+  }
+  canvas{display:block;width:100vw;height:100vh;touch-action:manipulation}
+
+  /* ✅ زر الرئيسية */
+  #homeBtn{
+    position:fixed;
+    top:18px;
+    left:18px;
+    z-index:20;
+    appearance:none;
+    border:0;
+    background:rgba(255,255,255,0.12);
+    color:rgba(255,255,255,0.9);
+    font-weight:800;
+    padding:10px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow:0 10px 25px rgba(0,0,0,0.25);
+    -webkit-tap-highlight-color: transparent;
+  }
+  #homeBtn:active{ transform: translateY(1px); }
+</style>
+</head>
+<body>
+
+<button id="homeBtn">الرئيسية</button>
+<canvas id="c"></canvas>
+
+<script>
+/* ✅ زر الرئيسية يرجع لقائمة الألعاب */
+document.getElementById("homeBtn").onclick = () => {
+  window.location.href = "index.html";
+};
+
+/* ================= STACK – dark gray background ================= */
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize(){
+  const dpr = Math.max(1, Math.min(2, devicePixelRatio||1));
+  canvas.width = Math.floor(innerWidth*dpr);
+  canvas.height = Math.floor(innerHeight*dpr);
+  canvas.style.width = innerWidth+"px";
+  canvas.style.height = innerHeight+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize', resize);
+resize();
+
+/* isometric */
+const COS30 = 0.866025403784;
+const SIN30 = 0.5;
+function iso(x,y){ return { x:(x-y)*COS30, y:(x+y)*SIN30 }; }
+
+/* =======================
+   ✅ التعديلات المطلوبة
+   1) تصغير الحجم
+   2) زيادة السرعة شوي
+   ======================= */
+
+/* أصغر من قبل */
+const BASE = 260;       // كان 320
+const THICK = 38;       // كان 46
+const STACK_STEP = 16;  // كان 20
+const MOVE_RANGE = 320; // كان 420 (عشان ما يطلع بعيد على الجوال)
+
+/* أسرع شوي */
+const SPEED0 = 4.0;     // كان 3.2
+const SPEED_INC = 0.024; // كان 0.018
+
+const PERFECT_EPS = 6;
+const FALL_G = 0.85;
+const FALL_LIFE = 85;
+
+/* subtle stars on dark bg */
+const stars=[];
+function initStars(){
+  stars.length=0;
+  const n = Math.round((innerWidth*innerHeight)/52000);
+  for(let i=0;i<n;i++){
+    stars.push({
+      x:Math.random()*innerWidth,
+      y:Math.random()*innerHeight,
+      r:0.6+Math.random()*1.6,
+      a:0.04+Math.random()*0.10,
+      t:(Math.random()<.5?-1:1)*(0.003+Math.random()*0.008)
+    });
+  }
+}
+initStars();
+addEventListener('resize', initStars);
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function hsl(h,s,l){return `hsl(${h} ${s}% ${l}%)`;}
+
+/* dark gray background */
+function drawBG(){
+  const g = ctx.createLinearGradient(0,0,0,innerHeight);
+  g.addColorStop(0, "#23272b");
+  g.addColorStop(1, "#15181b");
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,innerWidth,innerHeight);
+
+  for(const s of stars){
+    s.a += s.t;
+    if(s.a>0.18 || s.a<0.03) s.t *= -1;
+    ctx.fillStyle = `rgba(255,255,255,${s.a})`;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+  }
+}
+
+/* draw block – keep calm colors */
+function drawBlock(wx, wy, w, d, level, hue, light, drop=0){
+  const x0=wx-w/2, x1=wx+w/2;
+  const y0=wy-d/2, y1=wy+d/2;
+
+  const A=iso(x0,y0), B=iso(x1,y0), C=iso(x1,y1), D=iso(x0,y1);
+
+  const lift = level*STACK_STEP;
+  const baseA={x:A.x, y:A.y - lift + drop};
+  const baseB={x:B.x, y:B.y - lift + drop};
+  const baseC={x:C.x, y:C.y - lift + drop};
+  const baseD={x:D.x, y:D.y - lift + drop};
+
+  const topA ={x:baseA.x, y:baseA.y - THICK};
+  const topB ={x:baseB.x, y:baseB.y - THICK};
+  const topC ={x:baseC.x, y:baseC.y - THICK};
+  const topD ={x:baseD.x, y:baseD.y - THICK};
+
+  const cTop = hsl(hue, 42, light);
+  const cR   = hsl(hue, 42, clamp(light-8, 0, 100));
+  const cL   = hsl(hue, 42, clamp(light-14, 0, 100));
+
+  ctx.beginPath();
+  ctx.moveTo(topB.x, topB.y);
+  ctx.lineTo(topC.x, topC.y);
+  ctx.lineTo(baseC.x, baseC.y);
+  ctx.lineTo(baseB.x, baseB.y);
+  ctx.closePath();
+  ctx.fillStyle=cR; ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(topD.x, topD.y);
+  ctx.lineTo(topC.x, topC.y);
+  ctx.lineTo(baseC.x, baseC.y);
+  ctx.lineTo(baseD.x, baseD.y);
+  ctx.closePath();
+  ctx.fillStyle=cL; ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(topA.x, topA.y);
+  ctx.lineTo(topB.x, topB.y);
+  ctx.lineTo(topC.x, topC.y);
+  ctx.lineTo(topD.x, topD.y);
+  ctx.closePath();
+  ctx.fillStyle=cTop; ctx.fill();
+}
+
+/* game state */
+const bestKey="stack_best_pratyush_inspired_v1";
+let best = Number(localStorage.getItem(bestKey)||0);
+
+let blocks=[];
+let falling=[];
+let moving=null;
+let score=0;
+let over=true;
+
+let camOffX=0, camOffY=0;
+let perfectTimer=0;
+
+function updateCamera(){
+  const top = blocks[blocks.length-1];
+  camOffX = -top.x;
+  camOffY = -top.y;
+}
+
+/* overlap & cut */
+function overlap1D(c1,s1,c2,s2){
+  const a1=c1-s1/2, b1=c1+s1/2;
+  const a2=c2-s2/2, b2=c2+s2/2;
+  return Math.min(b1,b2) - Math.max(a1,a2);
+}
+function cut1D(mC,mS,tC,tS){
+  const mA=mC-mS/2, mB=mC+mS/2;
+  const tA=tC-tS/2, tB=tC+tS/2;
+
+  const kA=Math.max(mA,tA);
+  const kB=Math.min(mB,tB);
+  const keptSize=Math.max(0,kB-kA);
+  const keptCenter=(kA+kB)/2;
+
+  let cutSize=0, cutCenter=0, side=0;
+  if(mA < tA){ cutSize=tA-mA; cutCenter=(mA+tA)/2; side=-1; }
+  else if(mB > tB){ cutSize=mB-tB; cutCenter=(tB+mB)/2; side=+1; }
+
+  return {keptCenter, keptSize, cutCenter, cutSize, side};
+}
+
+/* spawn & gameplay */
+function spawnNext(){
+  const top = blocks[blocks.length-1];
+  const axis = (blocks.length % 2 === 0) ? "x" : "y";
+
+  // ✅ أسرع شوي
+  const speed = SPEED0 + score*SPEED_INC;
+
+  moving = {
+    axis,
+    x: top.x, y: top.y,
+    w: top.w, d: top.d,
+    dir: 1, speed,
+    range: MOVE_RANGE
+  };
+
+  if(axis==="x") moving.x = top.x - moving.range;
+  else moving.y = top.y - moving.range;
+}
+
+function spawnFalling(x,y,w,d,axis,side){
+  falling.push({
+    x,y,w,d,
+    vx: axis==="x" ? 0 : side*5.6,
+    vy: axis==="y" ? 0 : side*5.6,
+    vz: 0,
+    drop: 0,
+    life: 0
+  });
+}
+
+function endGame(){
+  over=true;
+  best=Math.max(best, score);
+  localStorage.setItem(bestKey, String(best));
+}
+
+function reset(){
+  blocks=[];
+  falling=[];
+  score=0;
+  over=false;
+  perfectTimer=0;
+
+  blocks.push({x:0,y:0,w:BASE,d:BASE}); // ✅ صار أصغر
+  updateCamera();
+  spawnNext();
+}
+
+function place(){
+  if(over){ reset(); return; }
+  if(!moving) return;
+
+  const top = blocks[blocks.length-1];
+
+  if(moving.axis==="x"){
+    const ov = overlap1D(moving.x, moving.w, top.x, top.w);
+    if(ov <= 0){
+      spawnFalling(moving.x, moving.y, moving.w, moving.d, moving.axis, 1);
+      moving=null;
+      endGame();
+      return;
+    }
+
+    const delta = Math.abs(moving.x - top.x);
+    if(delta <= PERFECT_EPS){ moving.x = top.x; perfectTimer = 20; }
+
+    const {keptCenter, keptSize, cutCenter, cutSize, side} =
+      cut1D(moving.x, moving.w, top.x, top.w);
+
+    blocks.push({ x: keptCenter, y: top.y, w: keptSize, d: moving.d });
+    if(cutSize>0){
+      spawnFalling(cutCenter, top.y, cutSize, moving.d, "x", side);
+    }
+
+  } else {
+    const ov = overlap1D(moving.y, moving.d, top.y, top.d);
+    if(ov <= 0){
+      spawnFalling(moving.x, moving.y, moving.w, moving.d, moving.axis, 1);
+      moving=null;
+      endGame();
+      return;
+    }
+
+    const delta = Math.abs(moving.y - top.y);
+    if(delta <= PERFECT_EPS){ moving.y = top.y; perfectTimer = 20; }
+
+    const {keptCenter, keptSize, cutCenter, cutSize, side} =
+      cut1D(moving.y, moving.d, top.y, top.d);
+
+    blocks.push({ x: top.x, y: keptCenter, w: moving.w, d: keptSize });
+    if(cutSize>0){
+      spawnFalling(top.x, cutCenter, moving.w, cutSize, "y", side);
+    }
+  }
+
+  score++;
+  updateCamera();
+  spawnNext();
+}
+
+function drawHUD(){
+  ctx.textAlign="center";
+  ctx.fillStyle="rgba(255,255,255,.75)";
+
+  // (بسيطة) خليها مناسبة أكثر للجوال
+  ctx.font="700 64px system-ui";
+  ctx.fillText(String(score), innerWidth/2, 140);
+
+  ctx.font="700 30px system-ui";
+  ctx.fillStyle="rgba(255,255,255,.45)";
+  ctx.fillText("👑 "+best, innerWidth/2, 195);
+
+  if(perfectTimer>0){
+    ctx.font="700 40px system-ui";
+    ctx.fillStyle="rgba(255,255,255,.65)";
+    ctx.fillText("PERFECT", innerWidth/2, innerHeight*0.33);
+  }
+
+  if(over){
+    ctx.font="700 34px system-ui";
+    ctx.fillStyle="rgba(255,255,255,.45)";
+    ctx.fillText("TAP TO RESTART", innerWidth/2, innerHeight*0.36);
+  }
+
+  ctx.font="12px system-ui";
+  ctx.fillStyle="rgba(255,255,255,.35)";
+  ctx.fillText('Inspired by "STACK" (Original creator: Pratyush)', innerWidth/2, innerHeight-14);
+}
+
+function tick(){
+  if(moving && !over){
+    const top = blocks[blocks.length-1];
+    if(moving.axis==="x"){
+      moving.x += moving.dir*moving.speed;
+      if(moving.x > top.x + moving.range) moving.dir=-1;
+      if(moving.x < top.x - moving.range) moving.dir= 1;
+    }else{
+      moving.y += moving.dir*moving.speed;
+      if(moving.y > top.y + moving.range) moving.dir=-1;
+      if(moving.y < top.y - moving.range) moving.dir= 1;
+    }
+  }
+
+  for(let i=falling.length-1;i>=0;i--){
+    const f=falling[i];
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vz += FALL_G;
+    f.drop += f.vz;
+    f.life++;
+    if(f.life > FALL_LIFE) falling.splice(i,1);
+  }
+
+  if(perfectTimer>0) perfectTimer--;
+
+  drawBG();
+
+  const cx = innerWidth/2;
+
+  // ✅ بما إن البلوكات صغرت، نخلي المتابعة (follow) أخف شوي
+  const follow = Math.max(0, (blocks.length - 9) * STACK_STEP);
+  const cy = innerHeight*0.62 + follow;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const light = clamp(48 + score*0.6, 48, 70);
+  const hue = 165;
+
+  for(let i=0;i<blocks.length;i++){
+    const b=blocks[i];
+    drawBlock(b.x+camOffX, b.y+camOffY, b.w, b.d, i, hue, light);
+  }
+  if(moving){
+    drawBlock(moving.x+camOffX, moving.y+camOffY, moving.w, moving.d, blocks.length, hue, light);
+  }
+  for(const f of falling){
+    drawBlock(f.x+camOffX, f.y+camOffY, f.w, f.d, blocks.length, hue, light, f.drop);
+  }
+
+  ctx.restore();
+  drawHUD();
+  requestAnimationFrame(tick);
+}
+
+addEventListener("pointerdown", e=>{ e.preventDefault(); place(); }, {passive:false});
+addEventListener("keydown", e=>{ if(e.code==="Space") place(); });
+
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

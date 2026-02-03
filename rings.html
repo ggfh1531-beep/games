@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+
+  <!-- ✅ أفضل إعدادات للجوال + Safari -->
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <title>Hoop Stack (6 Rings / Group Move)</title>
+
+  <style>
+    :root{
+      --safe-top: env(safe-area-inset-top);
+      --safe-bot: env(safe-area-inset-bottom);
+      --safe-left: env(safe-area-inset-left);
+      --safe-right: env(safe-area-inset-right);
+    }
+
+    html,body{
+      margin:0;
+      height:100%;
+      background:#111;
+      overflow:hidden;
+      touch-action:none;
+      user-select:none;
+      -webkit-user-select:none;
+      font-family:system-ui,-apple-system,Segoe UI,Arial;
+      -webkit-text-size-adjust:100%;
+      overscroll-behavior:none;
+    }
+
+    /* ✅ Canvas يغطي الشاشة الفعلية على iOS */
+    canvas{
+      display:block;
+      width:100vw;
+      height:100dvh;         /* modern */
+      height:100vh;          /* fallback */
+    }
+
+    /* ✅ رقم الحركات — يتكيّف مع الجوال */
+    #moves{
+      position:fixed;
+      top: calc(18px + var(--safe-top));
+      left:0; right:0;
+      text-align:center;
+      color:#eee;
+      font-weight:1000;
+      font-size: clamp(42px, 12vw, 72px);
+      letter-spacing:1px;
+      text-shadow:0 10px 24px rgba(0,0,0,.55);
+      pointer-events:none;
+      z-index:5;
+    }
+
+    /* زر الرئيسية (فوق) */
+    #homeBtn{
+      position:fixed;
+      top: calc(12px + var(--safe-top));
+      right: calc(12px + var(--safe-right));
+      z-index:10;
+      border:none;
+      padding: 12px 14px;
+      border-radius:16px;
+      font-weight:1000;
+      cursor:pointer;
+      background:rgba(255,255,255,.12);
+      color:#fff;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow:0 12px 26px rgba(0,0,0,.35);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #homeBtn:active{transform:scale(.97)}
+    #homeBtn span{opacity:.9}
+
+    /* شريط الأزرار تحت */
+    #bottomBar{
+      position:fixed;
+      left: calc(12px + var(--safe-left));
+      right: calc(12px + var(--safe-right));
+      bottom: calc(12px + var(--safe-bot));
+      display:flex;
+      justify-content:center;
+      gap: 12px;
+      z-index:15;
+      pointer-events:auto;
+    }
+    .barBtn{
+      border:none;
+      padding: 14px 16px;
+      border-radius:18px;
+      font-weight:1000;
+      cursor:pointer;
+      background:rgba(255,255,255,.12);
+      color:#fff;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow:0 12px 26px rgba(0,0,0,.35);
+      min-width: clamp(120px, 38vw, 170px);
+      font-size: clamp(14px, 3.6vw, 16px);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .barBtn:active{transform:scale(.98)}
+
+    /* قائمة البداية */
+    #menu{
+      position:fixed; inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:20;
+      background:rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding: calc(16px + var(--safe-top)) 16px calc(16px + var(--safe-bot));
+    }
+    .card{
+      width:min(520px, 92vw);
+      border-radius:26px;
+      padding: 22px 18px;
+      background:linear-gradient(180deg, rgba(38,40,44,.92), rgba(20,22,26,.92));
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 30px 70px rgba(0,0,0,.55);
+      color:#fff;
+      text-align:center;
+    }
+    .card h1{
+      margin:0 0 8px;
+      font-size: clamp(22px, 6vw, 28px);
+      font-weight:1000;
+      letter-spacing:.3px;
+    }
+    .card p{
+      margin:0 0 16px;
+      opacity:.85;
+      font-weight:800;
+      font-size: clamp(14px, 3.8vw, 16px);
+    }
+    .startBtn{
+      width:100%;
+      border:none;
+      padding: 14px 16px;
+      border-radius:18px;
+      font-weight:1000;
+      cursor:pointer;
+      background:linear-gradient(135deg, #28c8ff, #a875ff);
+      color:#0b0d10;
+      box-shadow:0 18px 40px rgba(0,0,0,.35);
+      font-size: clamp(15px, 4vw, 16px);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .startBtn:active{transform:scale(.98)}
+
+    /* ✅ مودال الفوز (وسط الشاشة) */
+    #winOverlay{
+      position:fixed; inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:60;
+      background:rgba(0,0,0,.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: calc(16px + var(--safe-top)) 16px calc(16px + var(--safe-bot));
+    }
+    .winCard{
+      width:min(520px, 92vw);
+      border-radius:26px;
+      padding: 22px 18px;
+      background:linear-gradient(180deg, rgba(38,40,44,.92), rgba(20,22,26,.92));
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 30px 70px rgba(0,0,0,.6);
+      color:#fff;
+      text-align:center;
+    }
+    .winCard h2{margin:0 0 10px; font-size: clamp(22px, 6.2vw, 30px); font-weight:1000;}
+    .winCard .big{font-size: clamp(34px, 10vw, 44px); font-weight:1000; margin:6px 0 10px;}
+    .winCard .sub{opacity:.85; font-weight:800; line-height:1.8; font-size: clamp(14px, 3.8vw, 16px);}
+    .pillRow{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px;}
+    .pill{
+      padding:10px 14px;
+      border-radius:999px;
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.16);
+      font-weight:900;
+      font-size: clamp(12px, 3.4vw, 14px);
+    }
+  </style>
+</head>
+
+<body>
+  <button id="homeBtn" title="الرئيسية">🏠 <span>الرئيسية</span></button>
+  <div id="moves">0</div>
+  <canvas id="c"></canvas>
+
+  <div id="bottomBar">
+    <button class="barBtn" id="restartBtn">🔄 إعادة</button>
+    <button class="barBtn" id="goGamesBtn">🏠 الرئيسية</button>
+  </div>
+
+  <div id="menu">
+    <div class="card">
+      <h1>Hoop Stack</h1>
+      <p>6 حلقات / نقل جماعي</p>
+      <button class="startBtn" id="startBtn">ابدأ اللعب</button>
+    </div>
+  </div>
+
+  <div id="winOverlay">
+    <div class="winCard">
+      <h2>كفو عليك ✅</h2>
+      <div class="big" id="winMoves">0</div>
+      <div class="sub">عدد الحركات</div>
+      <div class="pillRow">
+        <div class="pill">BEST: <span id="winBest">--</span></div>
+        <div class="pill">🎉 تبدأ جولة جديدة الآن</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const movesEl = document.getElementById('moves');
+  const menu = document.getElementById('menu');
+  const startBtn = document.getElementById('startBtn');
+  const homeBtn = document.getElementById('homeBtn');
+
+  const restartBtn = document.getElementById('restartBtn');
+  const goGamesBtn = document.getElementById('goGamesBtn');
+
+  const winOverlay = document.getElementById('winOverlay');
+  const winMovesEl = document.getElementById('winMoves');
+  const winBestEl  = document.getElementById('winBest');
+
+  const GAMES_PAGE = 'index.html';
+
+  // ===== إعدادات اللعبة =====
+  const PEGS = 5;
+  const CAP  = 6;
+  const COLORS = [
+    { top:'#28c8ff', mid:'#18a7e6', dark:'#0a6da6' },
+    { top:'#ff5aa2', mid:'#e83b85', dark:'#a61f5b' },
+    { top:'#ffd65a', mid:'#f0b83c', dark:'#b27a1a' },
+    { top:'#a875ff', mid:'#8a55f0', dark:'#5b2bb6' }
+  ];
+
+  // ===== BEST (أقل حركات) =====
+  const BEST_KEY = 'hoop_best_moves';
+  let bestMoves = Number(localStorage.getItem(BEST_KEY));
+  if (!Number.isFinite(bestMoves) || bestMoves <= 0) bestMoves = Infinity;
+
+  // ===== الحالة =====
+  let W=0,H=0,dpr=1;
+  let pegs = [];
+  let selected = -1;
+  let selectedGroup = [];
+  let moves = 0;
+  let anim = null;
+  let playing = false;
+  let winLock = false;
+  let winTimer = null;
+
+  const ui = {
+    baseY: 0, baseW: 0, baseH: 0,
+    pegTopY: 0, pegH: 0, spacing: 0,
+    ringRX: 0, ringRY: 0, ringT: 0, ringStep: 0,
+    pegX: (i)=>0
+  };
+
+  function viewportSize(){
+    const vv = window.visualViewport;
+    // ✅ على iOS هذا أدق من innerHeight
+    const w = vv ? vv.width : window.innerWidth;
+    const h = vv ? vv.height : window.innerHeight;
+    return { w, h };
+  }
+
+  function resize(){
+    dpr = window.devicePixelRatio || 1;
+
+    const { w, h } = viewportSize();
+    W = Math.floor(w);
+    H = Math.floor(h);
+
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+
+    canvas.width  = Math.floor(W*dpr);
+    canvas.height = Math.floor(H*dpr);
+
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    layout();
+  }
+
+  function layout(){
+    ui.baseW = Math.min(520, W*0.86);
+    ui.baseH = Math.min(90,  H*0.14);
+
+    // ✅ نخلي القاعدة أعلى شوي على الجوال عشان ما تغطيها أزرار تحت
+    ui.baseY = Math.floor(H*0.76);
+
+    ui.spacing = ui.baseW / (PEGS-1);
+    const centerX = W/2;
+    ui.pegX = (i)=> centerX + (i-(PEGS-1)/2)*ui.spacing;
+
+    ui.ringRX  = Math.min(46, ui.spacing*0.33);
+    ui.ringRY  = ui.ringRX*0.35;
+    ui.ringT   = Math.max(10, ui.ringRY*0.95);
+    ui.ringStep= ui.ringT + ui.ringRY*1.18;
+
+    const fullStackH = (CAP-1)*ui.ringStep + (ui.ringRY*2 + ui.ringT);
+    ui.pegH = fullStackH + 10;
+    ui.pegTopY = ui.baseY - ui.pegH;
+  }
+
+  function initGame(){
+    pegs = Array.from({length:PEGS}, ()=>[]);
+    const pool = [];
+    for(let c=0;c<4;c++) for(let k=0;k<CAP;k++) pool.push(c);
+    for(let i=pool.length-1;i>0;i--){
+      const j = (Math.random()*(i+1))|0;
+      [pool[i],pool[j]]=[pool[j],pool[i]];
+    }
+    const fillPegIdx = [0,1,3,4];
+    for(const p of fillPegIdx){
+      for(let i=0;i<CAP;i++) pegs[p].push(pool.pop());
+    }
+    selected = -1;
+    selectedGroup = [];
+    anim = null;
+    moves = 0;
+    movesEl.textContent = moves;
+    winLock = false;
+  }
+
+  function showMenu(){
+    playing = false;
+    menu.style.display = 'flex';
+  }
+
+  function startGame(){
+    initGame();
+    playing = true;
+    menu.style.display = 'none';
+  }
+
+  startBtn.addEventListener('click', startGame);
+
+  homeBtn.addEventListener('click', () => location.href = GAMES_PAGE);
+  goGamesBtn.addEventListener('click', () => location.href = GAMES_PAGE);
+
+  restartBtn.addEventListener('click', () => {
+    initGame();
+    playing = true;
+    menu.style.display = 'none';
+  });
+
+  function drawBackground(){
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#26282c');
+    g.addColorStop(0.45,'#1b1d21');
+    g.addColorStop(1,'#14161a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    const rg = ctx.createRadialGradient(W/2,H*0.45, 20, W/2,H*0.45, Math.max(W,H)*0.75);
+    rg.addColorStop(0,'rgba(0,0,0,0)');
+    rg.addColorStop(1,'rgba(0,0,0,.35)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  function roundRect(x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawBase(){
+    const x = W/2 - ui.baseW/2;
+    const y = ui.baseY;
+    const r = 18;
+
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    roundRect(x, y+10, ui.baseW, ui.baseH, r);
+    ctx.fill();
+
+    const wood = ctx.createLinearGradient(0,y,0,y+ui.baseH);
+    wood.addColorStop(0,'#f0c98b');
+    wood.addColorStop(1,'#d9a768');
+    ctx.fillStyle = wood;
+    roundRect(x, y, ui.baseW, ui.baseH, r);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(0,0,0,.12)';
+    roundRect(x, y+ui.baseH*0.72, ui.baseW, ui.baseH*0.28, r);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0,0,0,.08)';
+    ctx.lineWidth = 2;
+    for(let i=0;i<7;i++){
+      const yy = y + 18 + i*9;
+      ctx.beginPath();
+      ctx.moveTo(x+20, yy);
+      ctx.lineTo(x+ui.baseW-20, yy);
+      ctx.stroke();
+    }
+
+    const bestText = (bestMoves===Infinity) ? '--' : String(bestMoves);
+
+    ctx.font = '900 28px system-ui,Segoe UI,Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#2b7bff';
+    ctx.fillText('BEST', W/2 - 62, y + ui.baseH*0.55);
+    ctx.fillText(bestText,   W/2 + 78, y + ui.baseH*0.55);
+    ctx.font = '900 20px system-ui,Segoe UI,Arial';
+    ctx.fillText('🏆',   W/2 + 18, y + ui.baseH*0.55);
+  }
+
+  function pegGradient(x){
+    const grad = ctx.createLinearGradient(x-8, ui.pegTopY, x+8, ui.baseY);
+    grad.addColorStop(0,'#e6c086');
+    grad.addColorStop(0.5,'#d4a66a');
+    grad.addColorStop(1,'#b9854e');
+    return grad;
+  }
+
+  function drawPegs(){
+    for(let i=0;i<PEGS;i++){
+      const x = ui.pegX(i);
+
+      ctx.fillStyle = pegGradient(x);
+      roundRect(x-7, ui.pegTopY, 14, ui.pegH, 10);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,.18)';
+      roundRect(x-5, ui.pegTopY+6, 3, ui.pegH-12, 6);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(0,0,0,.12)';
+      ctx.beginPath();
+      ctx.ellipse(x, ui.pegTopY+6, 7, 3, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawRing(x, y, colorIdx, lift=0, onPeg=false){
+    const c = COLORS[colorIdx];
+
+    const rx = ui.ringRX;
+    const ry = ui.ringRY;
+    const t  = ui.ringT;
+
+    const yy = y - lift;
+
+    const holeRX = rx*0.22;
+    const holeRY = ry*0.26;
+
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
+    ctx.beginPath();
+    ctx.ellipse(x, yy + t + ry*0.95, rx*0.92, ry*0.9, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(x, yy + t*0.52, rx, ry + t*0.55, 0, 0, Math.PI*2);
+    ctx.ellipse(x, yy + t*0.52, holeRX, holeRY + t*0.45, 0, 0, Math.PI*2, true);
+    try { ctx.clip('evenodd'); } catch(e){ ctx.clip(); }
+
+    const side = ctx.createLinearGradient(0, yy, 0, yy+t+ry*1.2);
+    side.addColorStop(0,   c.mid);
+    side.addColorStop(0.55,c.dark);
+    side.addColorStop(1,   c.dark);
+    ctx.fillStyle = side;
+    ctx.fillRect(x-rx-6, yy-ry-6, (rx+6)*2, (ry+t+6)*2);
+    ctx.restore();
+
+    ctx.fillStyle = c.dark;
+    ctx.beginPath();
+    ctx.ellipse(x, yy + t, rx, ry, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    const topGrad = ctx.createLinearGradient(x-rx, yy-ry, x+rx, yy+ry);
+    topGrad.addColorStop(0, c.top);
+    topGrad.addColorStop(0.55, c.mid);
+    topGrad.addColorStop(1, c.dark);
+
+    ctx.fillStyle = topGrad;
+    ctx.beginPath();
+    ctx.ellipse(x, yy, rx, ry, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.beginPath();
+    ctx.ellipse(x - rx*0.25, yy - ry*0.25, rx*0.42, ry*0.32, -0.3, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(0,0,0,.40)';
+    ctx.beginPath();
+    ctx.ellipse(x, yy + t*0.18, holeRX*1.28, holeRY*1.16, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    if(onPeg){
+      const rod = ctx.createLinearGradient(x-6, yy, x+6, yy);
+      rod.addColorStop(0, '#b9854e');
+      rod.addColorStop(0.5,'#e6c086');
+      rod.addColorStop(1, '#b9854e');
+
+      ctx.fillStyle = rod;
+      ctx.beginPath();
+      ctx.ellipse(x, yy + t*0.16, holeRX*0.92, holeRY*0.78, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(0,0,0,.22)';
+      ctx.beginPath();
+      ctx.ellipse(x, yy + t*0.22, holeRX*0.92, holeRY*0.78, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.beginPath();
+      ctx.ellipse(x-1.5, yy + t*0.10, holeRX*0.35, holeRY*0.35, 0, 0, Math.PI*2);
+      ctx.fill();
+    }else{
+      ctx.fillStyle = '#0f1115';
+      ctx.beginPath();
+      ctx.ellipse(x, yy + t*0.16, holeRX*0.92, holeRY*0.78, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, yy + t*0.05, holeRX*1.02, holeRY*0.92, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  function ringY(level){
+    const baseTop = ui.baseY - 16;
+    return baseTop - (level*ui.ringStep) - ui.ringRY - ui.ringT*0.35;
+  }
+
+  function drawRings(){
+    for(let i=0;i<PEGS;i++){
+      const x = ui.pegX(i);
+      const stack = pegs[i];
+
+      for(let level=0; level<stack.length; level++){
+        const y = ringY(level);
+
+        let lift = 0;
+        if(i===selected){
+          const groupLen = selectedGroup.length;
+          const start = stack.length - groupLen;
+          if(level>=start) lift = 10;
+        }
+
+        drawRing(x, y, stack[level], lift, true);
+      }
+    }
+  }
+
+  function computeTopGroup(pegIndex){
+    const stack = pegs[pegIndex];
+    if(stack.length===0) return [];
+    const topColor = stack[stack.length-1];
+    let k = stack.length-1;
+    const group = [];
+    while(k>=0 && stack[k]===topColor){
+      group.push(stack[k]);
+      k--;
+    }
+    return group;
+  }
+
+  function isWin(){
+    let completed = 0;
+    let empties = 0;
+    for(const s of pegs){
+      if(s.length===0){ empties++; continue; }
+      if(s.length===CAP && s.every(v=>v===s[0])) completed++;
+    }
+    return (completed===4 && empties===1);
+  }
+
+  function showWinAndRestart(){
+    if(winLock) return;
+    winLock = true;
+
+    if(moves < bestMoves){
+      bestMoves = moves;
+      localStorage.setItem(BEST_KEY, String(bestMoves));
+    }
+
+    winMovesEl.textContent = moves;
+    winBestEl.textContent  = (bestMoves===Infinity) ? '--' : String(bestMoves);
+    winOverlay.style.display = 'flex';
+
+    clearTimeout(winTimer);
+    winTimer = setTimeout(() => {
+      winOverlay.style.display = 'none';
+      initGame();
+      playing = true;
+      menu.style.display = 'none';
+    }, 1100);
+  }
+
+  function drawAnim(){
+    if(!anim) return;
+
+    const now = performance.now();
+    const u = Math.min(1, (now - anim.t0) / anim.dur);
+
+    const easeInOut = (t)=> t<.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
+    const e = easeInOut(u);
+
+    const x = anim.x0 + (anim.x1 - anim.x0)*e;
+
+    let y;
+    if(u < 0.33){
+      const t = easeInOut(u/0.33);
+      y = anim.y0 + (anim.yLift - anim.y0)*t;
+    }else if(u < 0.72){
+      y = anim.yLift;
+    }else{
+      const t = easeInOut((u-0.72)/0.28);
+      y = anim.yLift + (anim.y1 - anim.yLift)*t;
+    }
+
+    for(let i=0;i<anim.rings.length;i++){
+      const yy = y - i*ui.ringStep;
+      drawRing(x, yy, anim.rings[i], 0, false);
+    }
+
+    if(u>=1){
+      const to = anim.to;
+      const moved = anim.movedCount;
+
+      const placed = anim.rings.slice(0, moved).reverse();
+      for(const r of placed) pegs[to].push(r);
+
+      const back = anim.rings.slice(moved).reverse();
+      for(const r of back) pegs[anim.from].push(r);
+
+      anim = null;
+
+      if(playing && isWin()) showWinAndRestart();
+    }
+  }
+
+  function pegFromX(mx){
+    let best = 0, bestD = Infinity;
+    for(let i=0;i<PEGS;i++){
+      const d = Math.abs(mx - ui.pegX(i));
+      if(d<bestD){ bestD=d; best=i; }
+    }
+    if(bestD > ui.spacing*0.55) return -1;
+    return best;
+  }
+
+  function onPointerDown(e){
+    if(!playing) return;
+    if(anim) return;
+    if(winOverlay.style.display === 'flex') return;
+
+    const mx = e.clientX;
+    const p = pegFromX(mx);
+    if(p<0) return;
+
+    if(selected===-1){
+      if(pegs[p].length>0){
+        selected = p;
+        selectedGroup = computeTopGroup(p);
+      }
+      return;
+    }
+
+    if(selected===p){
+      selected = -1;
+      selectedGroup = [];
+      return;
+    }
+
+    const from = selected;
+    const to = p;
+
+    const group = computeTopGroup(from);
+    if(group.length===0){
+      selected=-1; selectedGroup=[];
+      return;
+    }
+
+    const space = CAP - pegs[to].length;
+    if(space<=0){
+      selected = (pegs[to].length>0) ? to : -1;
+      selectedGroup = (selected>=0)? computeTopGroup(selected) : [];
+      return;
+    }
+
+    const movedCount = Math.min(space, group.length);
+
+    for(let i=0;i<group.length;i++) pegs[from].pop();
+
+    const x0 = ui.pegX(from);
+    const x1 = ui.pegX(to);
+
+    const y0 = ringY(pegs[from].length);
+    const yLift = ui.pegTopY - 26;
+    const y1 = ringY(pegs[to].length + movedCount - 1);
+
+    anim = {
+      rings: group.slice(),
+      from, to,
+      movedCount,
+      t0: performance.now(),
+      dur: 340,
+      x0, x1,
+      y0, yLift, y1
+    };
+
+    moves++;
+    movesEl.textContent = moves;
+
+    selected = -1;
+    selectedGroup = [];
+  }
+
+  function render(){
+    drawBackground();
+    drawBase();
+    drawPegs();
+
+    if(playing){
+      drawRings();
+      drawAnim();
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  window.addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('scroll', resize);
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+
+  resize();
+  initGame();
+  showMenu();
+  render();
+})();
+</script>
+</body>
+</html>

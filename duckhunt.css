@@ -1,0 +1,79 @@
+html, body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+
+  background: url("duckhunt-bg-4k.png") no-repeat center bottom / cover;
+  background-color:#5cc6ff;
+}
+
+/* نخفي مؤشر النظام */
+body{ cursor:none; }
+
+/* HUD تحت مثل الفيديو */
+#hud{
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 9999;
+
+  display: flex;
+  gap: 22px;
+  align-items: center;
+
+  font-family: system-ui, -apple-system, "Segoe UI", Arial;
+  font-size: 16px;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,.7);
+
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+}
+
+#hud span, #hud div{
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+/* البط */
+.duck{
+  position:absolute;
+  z-index: 3000;
+  width:96px;
+  height:93px;
+  -webkit-user-drag:none;
+  user-select:none;
+}
+
+/* الكلب أصغر */
+.dog{
+  position:fixed;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%) scale(0.55);
+  transform-origin:bottom center;
+  z-index:4000;
+}
+
+/* Crosshair بصورة target.png */
+#crosshair{
+  position: fixed;
+  width: 34px;
+  height: 34px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  z-index: 99999;
+  pointer-events: none;
+
+  background: url("target.png") no-repeat center / contain;
+}
